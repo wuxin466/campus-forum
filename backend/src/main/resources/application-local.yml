@@ -1,0 +1,10 @@
+spring:
+  config:
+    activate:
+      on-profile: local
+  flyway:
+    enabled: false
+
+logging:
+  level:
+    com.campus.forum.mapper: debug
