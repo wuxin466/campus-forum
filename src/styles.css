@@ -60,7 +60,7 @@ button { border: 0; background: none; cursor: pointer; }
 .brand span { color: var(--blue); }
 .brand i { width: 7px; height: 7px; background: var(--lime); border-radius: 50%; align-self: flex-start; margin: 4px 0 0 2px; }
 
-nav { display: flex; height: 100%; gap: 34px; }
+nav { display: flex; height: 100%; gap: 22px; }
 nav button { position: relative; color: #3f4550; font-weight: 600; font-size: 15px; white-space: nowrap; }
 nav button::after { content: ""; position: absolute; left: 50%; right: 50%; bottom: -1px; height: 3px; background: var(--blue); transition: .2s ease; }
 nav button:hover, nav button.active { color: var(--blue); }
@@ -83,6 +83,9 @@ nav button.active::after { left: 0; right: 0; }
 .profile-button { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 650; }
 .profile-button > img { width: 36px; height: 36px; object-fit: cover; border-radius: 50%; }
 .profile-button > svg:last-child { width: 14px; }
+.admin-entry-button { display: inline-flex; align-items: center; gap: 6px; padding: 9px 12px; border-radius: 9px; color: #173fb8; background: #eef2ff; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.admin-entry-button svg { width: 17px; height: 17px; }
+.login-entry { padding: 10px 14px; border: 1px solid #dfe3ea; border-radius: 9px; }
 
 .page { width: min(1380px, calc(100% - 64px)); margin: 0 auto 80px; }
 .route-notice { margin-top: 16px; display: flex; align-items: center; gap: 8px; padding: 11px 15px; color: #43506b; background: #edf2ff; border-radius: 10px; font-size: 13px; }

@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { authStore } from "./api.js";
 import {
   Bell,
   BookmarkSimple,
@@ -121,6 +122,8 @@ function Post({ post, onUpdate }) {
 
 export function HomePage() {
   const navigate = useNavigate();
+  const hasToken = Boolean(authStore.access());
+  const isAdmin = authStore.isAdmin();
   const [activeNav, setActiveNav] = useState("首页");
   const [feedTab, setFeedTab] = useState("推荐");
   const [query, setQuery] = useState("");
@@ -160,9 +163,9 @@ export function HomePage() {
         <div className="topbar-inner">
           <button className="brand" onClick={() => navigate("/")}><span>同窗</span>圈<i /></button>
           <nav aria-label="主导航">
-            {["首页", "论坛", "表白墙", "联谊活动", "校园资讯"].map((item) => (
+            {["首页", "论坛", "表白墙", "联谊活动", "校园资讯", "好友", "私信"].map((item) => (
               <button key={item} className={activeNav === item ? "active" : ""} onClick={() => {
-                const paths = { 首页: "/", 论坛: "/forum", 表白墙: "/confess", 联谊活动: "/activities", 校园资讯: "/news" };
+                const paths = { 首页: "/", 论坛: "/forum", 表白墙: "/confess", 联谊活动: "/activities", 校园资讯: "/news", 好友: "/friends", 私信: "/messages" };
                 setActiveNav(item);
                 navigate(paths[item]);
               }}>{item}</button>
@@ -184,7 +187,8 @@ export function HomePage() {
                 </div>
               )}
             </div>
-            <button className="profile-button" onClick={() => navigate("/me")}><img src="/assets/avatar-linxia.jpg" alt="林同学的头像" /><span>林同学</span><CaretDown /></button>
+            <button className="admin-entry-button" onClick={() => navigate(isAdmin ? "/admin" : "/admin/login")}><ShieldCheck />{isAdmin ? "管理后台" : "管理员登录"}</button>
+            {hasToken ? <button className="profile-button" onClick={() => navigate("/me")}><img src="/assets/avatar-linxia.jpg" alt="个人头像" /><span>个人中心</span><CaretDown /></button> : <button className="profile-button login-entry" onClick={() => navigate("/login")}><span>登录 / 注册</span></button>}
           </div>
         </div>
       </header>

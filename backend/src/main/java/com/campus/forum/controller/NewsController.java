@@ -39,4 +39,9 @@ public class NewsController {
             @RequestParam(defaultValue = "10") @Min(1) @Max(100) long size) {
         return ApiResponse.success(newsService.notices(page, size));
     }
+
+    @GetMapping("/public/notices/{id}")
+    public ApiResponse<NoticeResponse> noticeDetail(@PathVariable long id) {
+        return ApiResponse.success(newsService.noticeDetail(id));
+    }
 }

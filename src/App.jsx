@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { HomePage } from "./HomePage.jsx";
+import { authStore } from "./api.js";
 import {
   ActivityDetailPage,
   ActivityPage,
@@ -27,8 +28,7 @@ function Guard({ children }) {
 }
 
 function AdminGuard({ children }) {
-  const token = localStorage.getItem("campus-access-token");
-  return token ? children : <Navigate to="/admin/login" replace />;
+  return authStore.access() && authStore.isAdmin() ? children : <Navigate to="/admin/login" replace />;
 }
 
 export function App() {

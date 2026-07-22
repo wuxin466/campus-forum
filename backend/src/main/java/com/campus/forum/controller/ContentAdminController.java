@@ -5,6 +5,10 @@ import com.campus.forum.dto.admin.BannerRequest;
 import com.campus.forum.dto.admin.NewsManageRequest;
 import com.campus.forum.dto.admin.NoticeManageRequest;
 import com.campus.forum.dto.news.BannerResponse;
+import com.campus.forum.common.PageResponse;
+import com.campus.forum.entity.Banner;
+import com.campus.forum.entity.News;
+import com.campus.forum.entity.SystemNotice;
 import com.campus.forum.service.ContentAdminService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -23,6 +27,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 public class ContentAdminController {
     private final ContentAdminService service;
+
+    @GetMapping("/admin/news")
+    public ApiResponse<PageResponse<News>> adminNews(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") long page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") long size) { return ApiResponse.success(service.news(page, size)); }
+
+    @GetMapping("/admin/notices")
+    public ApiResponse<PageResponse<SystemNotice>> adminNotices(@org.springframework.web.bind.annotation.RequestParam(defaultValue = "1") long page,
+            @org.springframework.web.bind.annotation.RequestParam(defaultValue = "20") long size) { return ApiResponse.success(service.notices(page, size)); }
+
+    @GetMapping("/admin/banners")
+    public ApiResponse<List<Banner>> adminBanners() { return ApiResponse.success(service.bannersForAdmin()); }
 
     @GetMapping("/public/banners")
     public ApiResponse<List<BannerResponse>> banners() { return ApiResponse.success(service.activeBanners()); }

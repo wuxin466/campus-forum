@@ -22,6 +22,10 @@ export const authStore = {
   },
   isAdmin: () => authStore.roles().some((role) =>
     role === "ADMIN" || role === "SUPER_ADMIN" || role === "ROLE_ADMIN" || role === "ROLE_SUPER_ADMIN"),
+  userId: () => {
+    try { return Number(JSON.parse(atob((localStorage.getItem(ACCESS_KEY) || "").split(".")[1])).sub); }
+    catch { return null; }
+  },
 };
 
 async function parse(response) {

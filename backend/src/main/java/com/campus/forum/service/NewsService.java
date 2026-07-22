@@ -50,6 +50,13 @@ public class NewsService {
         return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
+    public NoticeResponse noticeDetail(long id) {
+        SystemNotice notice = noticeMapper.selectOne(Wrappers.<SystemNotice>lambdaQuery()
+                .eq(SystemNotice::getId, id).eq(SystemNotice::getStatus, 1));
+        if (notice == null) throw new BusinessException(404, "系统公告不存在或已下架");
+        return toNotice(notice);
+    }
+
     private NewsResponse toNews(News item, boolean detail) {
         return new NewsResponse(item.getId(), item.getTitle(), item.getSummary(), detail ? item.getContent() : null,
                 item.getCoverUrl(), item.getSource(), item.getViewCount(), item.getIsTop() == 1, item.getPublishedAt());

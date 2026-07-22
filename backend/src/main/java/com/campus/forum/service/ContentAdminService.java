@@ -8,6 +8,8 @@ import com.campus.forum.dto.news.BannerResponse;
 import com.campus.forum.entity.Banner;
 import com.campus.forum.entity.News;
 import com.campus.forum.entity.SystemNotice;
+import com.campus.forum.common.PageResponse;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.BannerMapper;
 import com.campus.forum.mapper.NewsMapper;
@@ -25,6 +27,18 @@ public class ContentAdminService {
     private final NewsMapper newsMapper;
     private final SystemNoticeMapper noticeMapper;
     private final BannerMapper bannerMapper;
+
+    public PageResponse<News> news(long page, long size) {
+        return PageResponse.from(newsMapper.selectPage(Page.of(page, size), Wrappers.<News>lambdaQuery().orderByDesc(News::getId)));
+    }
+
+    public PageResponse<SystemNotice> notices(long page, long size) {
+        return PageResponse.from(noticeMapper.selectPage(Page.of(page, size), Wrappers.<SystemNotice>lambdaQuery().orderByDesc(SystemNotice::getId)));
+    }
+
+    public List<Banner> bannersForAdmin() {
+        return bannerMapper.selectList(Wrappers.<Banner>lambdaQuery().orderByAsc(Banner::getSortNo));
+    }
 
     @Transactional
     public long createNews(long adminId, NewsManageRequest request) {
