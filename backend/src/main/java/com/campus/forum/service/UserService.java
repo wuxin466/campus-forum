@@ -1,6 +1,9 @@
 package com.campus.forum.service;
 
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.campus.forum.common.PageResponse;
 import com.campus.forum.dto.user.PublicUserResponse;
 import com.campus.forum.dto.user.UpdateProfileRequest;
 import com.campus.forum.dto.user.UserProfileResponse;
@@ -50,6 +53,34 @@ public class UserService {
                         .and(query -> query.like(User::getNickname, value).or().like(User::getCollege, value))
                         .orderByDesc(User::getVerifyStatus).last("LIMIT 20"))
                 .stream().map(user -> PublicUserResponse.from(user, isFriend(currentUserId, user.getId()))).toList();
+    }
+
+    public List<PublicUserResponse> publicSearch(Long currentUserId, String keyword, int limit) {
+        if (!StringUtils.hasText(keyword)) return List.of();
+        int safeLimit = Math.max(1, Math.min(limit, 20));
+        String value = keyword.trim();
+        return userMapper.selectList(Wrappers.<User>lambdaQuery()
+                        .eq(User::getStatus, 1)
+                        .ne(currentUserId != null, User::getId, currentUserId)
+                        .and(query -> query.like(User::getNickname, value)
+                                .or().like(User::getCollege, value)
+                                .or().like(User::getGrade, value))
+                        .orderByDesc(User::getVerifyStatus).last("LIMIT " + safeLimit))
+                .stream().map(user -> PublicUserResponse.from(user,
+                        currentUserId != null && isFriend(currentUserId, user.getId()))).toList();
+    }
+
+    public PageResponse<PublicUserResponse> publicSearchPage(Long currentUserId, String keyword, long page, long size) {
+        if (!StringUtils.hasText(keyword)) return new PageResponse<>(List.of(), 0, page, size, 0);
+        String value = keyword.trim();
+        IPage<User> result = userMapper.selectPage(Page.of(page, size), Wrappers.<User>lambdaQuery()
+                .eq(User::getStatus, 1).ne(currentUserId != null, User::getId, currentUserId)
+                .and(query -> query.like(User::getNickname, value).or().like(User::getCollege, value)
+                        .or().like(User::getGrade, value).or().like(User::getUsername, value))
+                .orderByDesc(User::getVerifyStatus));
+        List<PublicUserResponse> records = result.getRecords().stream().map(user -> PublicUserResponse.from(user,
+                currentUserId != null && isFriend(currentUserId, user.getId()))).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
     User requireActiveUser(long userId) {

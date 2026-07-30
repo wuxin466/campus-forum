@@ -1,0 +1,13 @@
+spring:
+  config:
+    activate:
+      on-profile: prod
+campus:
+  storage:
+    mode: minio
+  password-reset:
+    expose-code: false
+    mail-enabled: true
+  infrastructure:
+    redis-enabled: true
+    rabbit-enabled: true

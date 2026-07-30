@@ -20,6 +20,7 @@ import {
   PersonalCenterPage,
   SearchPage,
   UserSpacePage,
+  VerificationPage,
 } from "./Portal.jsx";
 
 function Guard({ children }) {
@@ -59,6 +60,7 @@ export function App() {
         <Route path="/messages" element={<Guard><MessagePage /></Guard>} />
         <Route path="/messages/:id" element={<Guard><MessagePage conversation /></Guard>} />
         <Route path="/me" element={<Guard><PersonalCenterPage /></Guard>} />
+        <Route path="/verification" element={<Guard><VerificationPage /></Guard>} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
         <Route path="/admin/:section" element={<AdminGuard><AdminPage /></AdminGuard>} />

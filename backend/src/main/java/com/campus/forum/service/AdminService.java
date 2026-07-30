@@ -5,17 +5,20 @@ import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.campus.forum.common.PageResponse;
 import com.campus.forum.dto.admin.AdminUserResponse;
+import com.campus.forum.dto.admin.AdminOverviewResponse;
 import com.campus.forum.dto.admin.AuditRequest;
 import com.campus.forum.entity.Activity;
 import com.campus.forum.entity.AdminAuditLog;
 import com.campus.forum.entity.Confess;
 import com.campus.forum.entity.ForumPost;
+import com.campus.forum.entity.Report;
 import com.campus.forum.entity.User;
 import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.ActivityMapper;
 import com.campus.forum.mapper.AdminAuditLogMapper;
 import com.campus.forum.mapper.ConfessMapper;
 import com.campus.forum.mapper.ForumPostMapper;
+import com.campus.forum.mapper.ReportMapper;
 import com.campus.forum.mapper.UserMapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,8 +38,23 @@ public class AdminService {
     private final ConfessMapper confessMapper;
     private final ActivityMapper activityMapper;
     private final AdminAuditLogMapper auditLogMapper;
+    private final ReportMapper reportMapper;
     private final NotificationService notificationService;
     private final ObjectMapper objectMapper;
+
+    public AdminOverviewResponse overview() {
+        long totalUsers = userMapper.selectCount(Wrappers.lambdaQuery());
+        long activeUsers = userMapper.selectCount(Wrappers.<User>lambdaQuery().eq(User::getStatus, 1));
+        long bannedUsers = userMapper.selectCount(Wrappers.<User>lambdaQuery().eq(User::getStatus, 2));
+        long publishedPosts = postMapper.selectCount(Wrappers.<ForumPost>lambdaQuery()
+                .eq(ForumPost::getAuditStatus, 1).eq(ForumPost::getStatus, 1));
+        long pendingPosts = postMapper.selectCount(Wrappers.<ForumPost>lambdaQuery().eq(ForumPost::getAuditStatus, 0));
+        long pendingConfesses = confessMapper.selectCount(Wrappers.<Confess>lambdaQuery().eq(Confess::getAuditStatus, 0));
+        long pendingActivities = activityMapper.selectCount(Wrappers.<Activity>lambdaQuery().eq(Activity::getAuditStatus, 0));
+        long pendingReports = reportMapper.selectCount(Wrappers.<Report>lambdaQuery().lt(Report::getStatus, 2));
+        return new AdminOverviewResponse(totalUsers, activeUsers, bannedUsers, publishedPosts,
+                pendingPosts, pendingConfesses, pendingActivities, pendingReports);
+    }
 
     public PageResponse<AdminUserResponse> users(long page, long size, String keyword, Integer status) {
         IPage<User> result = userMapper.selectPage(Page.of(page, size),
@@ -70,6 +88,39 @@ public class AdminService {
                 Wrappers.<ForumPost>lambdaQuery().eq(ForumPost::getAuditStatus, 0)
                         .orderByAsc(ForumPost::getCreatedAt));
         return PageResponse.from(result);
+    }
+
+    public PageResponse<ForumPost> publishedPosts(long page, long size) {
+        IPage<ForumPost> result = postMapper.selectPage(Page.of(page, size),
+                Wrappers.<ForumPost>lambdaQuery().eq(ForumPost::getAuditStatus, 1)
+                        .in(ForumPost::getStatus, 1, 2).orderByDesc(ForumPost::getCreatedAt));
+        return PageResponse.from(result);
+    }
+
+    @Transactional
+    public void downPost(long adminId, long postId, String reason, String ip) {
+        ForumPost post = postMapper.selectById(postId);
+        if (post == null || post.getAuditStatus() != 1 || post.getStatus() != 1) {
+            throw new BusinessException(404, "已发布帖子不存在");
+        }
+        String detail = StringUtils.hasText(reason) ? reason.trim() : "管理员下架";
+        post.setStatus(2); post.setAuditReason(detail); postMapper.updateById(post);
+        notificationService.create(post.getUserId(), adminId, 4, "帖子已被下架", detail, 1, postId);
+        log(adminId, "DOWN_POST", "POST", postId, detail, ip);
+    }
+
+    @Transactional
+    public void restorePost(long adminId, long postId, String ip) {
+        ForumPost post = postMapper.selectById(postId);
+        if (post == null || post.getAuditStatus() != 1 || post.getStatus() != 2) {
+            throw new BusinessException(404, "已下架帖子不存在");
+        }
+        post.setStatus(1);
+        post.setAuditReason(null);
+        postMapper.updateById(post);
+        notificationService.create(post.getUserId(), adminId, 4, "帖子已恢复上架",
+                "管理员已恢复展示该帖子", 1, postId);
+        log(adminId, "RESTORE_POST", "POST", postId, "恢复上架", ip);
     }
 
     public PageResponse<Confess> pendingConfesses(long page, long size) {

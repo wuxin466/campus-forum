@@ -107,6 +107,37 @@ nav button.active::after { left: 0; right: 0; }
 .verified div { display: flex; flex-direction: column; gap: 1px; }
 .verified strong { font-size: 12px; }
 .verified span { font-size: 10px; opacity: .76; }
+.live-banner > img { object-position: center; }
+.carousel-controls { position: absolute; z-index: 3; left: 50%; bottom: 16px; transform: translateX(-50%); display: flex; align-items: center; gap: 10px; padding: 6px 9px; border-radius: 20px; background: rgba(12, 18, 27, .55); backdrop-filter: blur(8px); }
+.carousel-controls > button { width: 25px; height: 25px; display: grid; place-items: center; color: white; }
+.carousel-controls > button svg { width: 15px; height: 15px; }
+.carousel-controls > div { display: flex; gap: 6px; }
+.carousel-controls > div button { width: 7px; height: 7px; padding: 0; border-radius: 50%; background: rgba(255,255,255,.48); transition: width .2s ease, border-radius .2s ease; }
+.carousel-controls > div button.active { width: 22px; border-radius: 5px; background: var(--lime); }
+
+.campus-briefing { display: grid; grid-template-columns: 170px minmax(0, 1fr) minmax(300px, .72fr); gap: 24px; align-items: stretch; margin-top: 22px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: white; }
+.briefing-heading { display: flex; flex-direction: column; align-items: flex-start; justify-content: center; padding-right: 20px; border-right: 1px solid var(--line); }
+.briefing-heading h2 { margin: 0 0 16px; font-size: 23px; letter-spacing: -.8px; }
+.briefing-heading button { display: flex; align-items: center; gap: 3px; color: var(--blue); font-size: 12px; font-weight: 750; }
+.briefing-heading button svg { width: 13px; }
+.briefing-news { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(130px, .8fr); gap: 8px 16px; }
+.briefing-news button { min-width: 0; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: 5px; padding: 5px 0; text-align: left; }
+.briefing-news button:not(.featured-news) { border-bottom: 1px solid var(--line); }
+.briefing-news button span { display: flex; align-items: center; gap: 4px; color: var(--blue); font-size: 10px; font-weight: 750; }
+.briefing-news button span svg { width: 13px; height: 13px; }
+.briefing-news button strong { max-width: 100%; overflow: hidden; color: var(--ink); font-size: 13px; line-height: 1.45; text-overflow: ellipsis; white-space: nowrap; }
+.briefing-news button:hover strong, .briefing-notices button:hover strong { color: var(--blue); }
+.briefing-news .featured-news { grid-row: 1 / 3; display: grid; grid-template-columns: 108px 1fr; grid-template-rows: auto auto 1fr; column-gap: 13px; }
+.featured-news img { grid-row: 1 / 4; width: 108px; height: 86px; object-fit: cover; border-radius: 10px; background: #eceeea; }
+.featured-news small { display: -webkit-box; overflow: hidden; color: var(--muted); font-size: 11px; line-height: 1.5; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.briefing-notices { min-width: 0; padding-left: 22px; border-left: 1px solid var(--line); }
+.notice-title { display: flex; align-items: center; gap: 7px; margin-bottom: 7px; font-size: 13px; }
+.notice-title svg { width: 18px; color: var(--coral); }
+.briefing-notices > button { width: 100%; display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); text-align: left; }
+.briefing-notices > button > span { padding: 2px 4px; border-radius: 4px; color: #7c6020; background: #fff2c9; font-size: 9px; text-align: center; }
+.briefing-notices > button strong { overflow: hidden; font-size: 12px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.briefing-notices time { color: #9a9fa8; font-size: 10px; }
+.briefing-notices > p { margin: 18px 0 0; color: var(--muted); font-size: 12px; }
 
 .content-grid { display: grid; grid-template-columns: minmax(0, 1fr) 380px; gap: 46px; margin-top: 38px; }
 .feed-section { min-width: 0; }
@@ -198,6 +229,15 @@ nav button.active::after { left: 0; right: 0; }
 .submit { padding: 11px 16px; border-radius: 9px; color: white; background: var(--blue); }
 .submit:disabled { cursor: not-allowed; opacity: .4; }
 
+@media (max-width: 1280px) {
+  .topbar-inner { gap: 24px; }
+  nav { gap: 16px; }
+  .top-actions { gap: 10px; }
+  .search-box { width: 230px; }
+  .search-box:focus-within { width: 250px; }
+  .profile-button > svg:last-child { display: none; }
+}
+
 @media (max-width: 1080px) {
   .topbar-inner, .page { width: min(100% - 36px, 980px); }
   .topbar-inner { gap: 24px; }
@@ -205,6 +245,8 @@ nav button.active::after { left: 0; right: 0; }
   nav button:nth-last-child(-n+2) { display: none; }
   .profile-button span { display: none; }
   .content-grid { grid-template-columns: minmax(0, 1fr) 320px; gap: 28px; }
+  .campus-briefing { grid-template-columns: 140px minmax(0, 1fr); }
+  .briefing-notices { grid-column: 1 / -1; padding: 16px 0 0; border-top: 1px solid var(--line); border-left: 0; }
 }
 
 @media (max-width: 760px) {
@@ -225,6 +267,15 @@ nav button.active::after { left: 0; right: 0; }
   .hero h1 { font-size: 34px; }
   .hero-copy p { display: none; }
   .verified { display: none; }
+  .carousel-controls { bottom: auto; top: 14px; }
+  .campus-briefing { display: block; margin-top: 14px; padding: 18px; }
+  .briefing-heading { flex-direction: row; align-items: center; justify-content: space-between; padding: 0 0 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .briefing-heading .section-kicker { display: none; }
+  .briefing-heading h2 { margin: 0; font-size: 19px; }
+  .briefing-news { display: block; padding-top: 10px; }
+  .briefing-news .featured-news { display: grid; grid-template-columns: 82px 1fr; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .featured-news img { width: 82px; height: 70px; }
+  .briefing-notices { margin-top: 12px; padding-top: 14px; }
   .content-grid { display: block; margin-top: 28px; }
   .section-head { flex-direction: column; align-items: flex-start; gap: 14px; }
   .section-head h2 { font-size: 21px; }

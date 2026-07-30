@@ -42,9 +42,12 @@ public class NewsService {
         return toNews(news, true);
     }
 
-    public PageResponse<NoticeResponse> notices(long page, long size) {
+    public PageResponse<NoticeResponse> notices(long page, long size) { return notices(page, size, null); }
+
+    public PageResponse<NoticeResponse> notices(long page, long size, String keyword) {
         IPage<SystemNotice> result = noticeMapper.selectPage(Page.of(page, size),
                 Wrappers.<SystemNotice>lambdaQuery().eq(SystemNotice::getStatus, 1)
+                        .and(StringUtils.hasText(keyword), q -> q.like(SystemNotice::getTitle, keyword).or().like(SystemNotice::getContent, keyword))
                         .orderByDesc(SystemNotice::getIsTop, SystemNotice::getPublishedAt));
         List<NoticeResponse> records = result.getRecords().stream().map(this::toNotice).toList();
         return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());

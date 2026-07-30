@@ -35,7 +35,8 @@ async function parse(response) {
 }
 
 export async function api(path, options = {}, retry = true) {
-  const headers = { ...(options.body ? { "Content-Type": "application/json" } : {}), ...options.headers };
+  const multipart = typeof FormData !== "undefined" && options.body instanceof FormData;
+  const headers = { ...(options.body && !multipart ? { "Content-Type": "application/json" } : {}), ...options.headers };
   const token = authStore.access();
   if (token) headers.Authorization = `Bearer ${token}`;
   const response = await fetch(`${API_BASE}${path}`, { ...options, headers });
@@ -51,6 +52,8 @@ export async function api(path, options = {}, retry = true) {
   }
   return parse(response);
 }
+
+export const publicFileUrl = (id) => `${API_BASE}/public/files/${id}`;
 
 export async function adminLogin(username, password) {
   const tokens = await api("/auth/login", { method: "POST", body: JSON.stringify({ username, password }) }, false);

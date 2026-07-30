@@ -1,18 +1,21 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { authStore } from "./api.js";
+import { api, authStore } from "./api.js";
 import {
   Bell,
   BookmarkSimple,
   CalendarBlank,
   CaretDown,
+  CaretLeft,
+  CaretRight,
   ChatCircle,
   CheckCircle,
   Fire,
   Heart,
-  Image,
   MagnifyingGlass,
   MapPin,
+  Megaphone,
+  Newspaper,
   PaperPlaneTilt,
   PencilSimpleLine,
   Plus,
@@ -92,20 +95,20 @@ const hotTopics = [
   ["图书馆空调太冷怎么办", "4218"],
 ];
 
-function Post({ post, onUpdate }) {
-  const avatar = post.author === "周屿" || post.author === "校羽毛球协会" ? "/assets/avatar-zhouyu.jpg" : "/assets/avatar-linxia.jpg";
+function Post({ post, onUpdate, onOpen }) {
+  const avatar = post.avatarUrl || (post.author === "周屿" || post.author === "校羽毛球协会" ? "/assets/avatar-zhouyu.jpg" : "/assets/avatar-linxia.jpg");
   return (
-    <article className="post-row">
+    <article className="post-row clickable" role="link" tabIndex={0} onClick={() => onOpen(post.id)} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") onOpen(post.id); }}>
       <div className="post-avatar"><img src={avatar} alt={`${post.author}的头像`} /></div>
       <div className="post-content">
         <div className="post-topline">
           <div><strong>{post.author}</strong><span>{post.meta}</span></div>
-          <button className="icon-button" aria-label="更多操作"><span>•••</span></button>
+          <button className="icon-button" aria-label="更多操作" onClick={(event) => event.stopPropagation()}><span>•••</span></button>
         </div>
         <h3>{post.title}</h3>
         <p>{post.body}</p>
         <div className="tags">{post.tags.map((tag) => <span key={tag}>#{tag}</span>)}</div>
-        <div className="post-actions">
+        <div className="post-actions" onClick={(event) => event.stopPropagation()}>
           <button className={post.liked ? "active" : ""} onClick={() => onUpdate(post.id, "liked")}>
             <Heart weight={post.liked ? "fill" : "regular"} /> {post.likes + (post.liked ? 1 : 0)}
           </button>
@@ -127,11 +130,41 @@ export function HomePage() {
   const [activeNav, setActiveNav] = useState("首页");
   const [feedTab, setFeedTab] = useState("推荐");
   const [query, setQuery] = useState("");
-  const [feed, setFeed] = useState(posts);
-  const [showComposer, setShowComposer] = useState(false);
+  const [feed, setFeed] = useState({ 推荐: [], 关注: [], 最新: [] });
+  const [homeActivities, setHomeActivities] = useState([]);
+  const [homeTopics, setHomeTopics] = useState([]);
+  const [banners, setBanners] = useState([]);
+  const [newsItems, setNewsItems] = useState([]);
+  const [noticeItems, setNoticeItems] = useState([]);
+  const [bannerIndex, setBannerIndex] = useState(0);
+  const [homeError, setHomeError] = useState("");
   const [showNotifications, setShowNotifications] = useState(false);
-  const [draft, setDraft] = useState("");
-  const [joined, setJoined] = useState([]);
+
+  useEffect(() => {
+    Promise.all([
+      api("/public/home"),
+      api("/public/banners"),
+      api("/public/news?page=1&size=4"),
+      api("/public/notices?page=1&size=4"),
+    ]).then(([data, bannerData, newsData, noticeData]) => {
+      const normalized = (data.posts || []).map((post) => ({ ...post, body: post.content, saved: post.collected, meta: `${post.college || post.categoryName || "校园用户"} · ${(post.createdAt || "").replace("T", " ").slice(0, 16)}` }));
+      setFeed({ 最新: normalized, 推荐: [...normalized].sort((a, b) => (b.likes + b.views) - (a.likes + a.views)), 关注: normalized });
+      setHomeActivities(data.activities || []);
+      setHomeTopics(data.hotTopics || []);
+      setBanners(bannerData || []);
+      setNewsItems(newsData?.records || []);
+      setNoticeItems(noticeData?.records || []);
+    }).catch((err) => setHomeError(err.message));
+  }, []);
+
+  useEffect(() => {
+    if (banners.length < 2) return undefined;
+    const timer = window.setInterval(() => setBannerIndex((current) => (current + 1) % banners.length), 5000);
+    return () => window.clearInterval(timer);
+  }, [banners.length]);
+
+  const activeBanner = banners[bannerIndex];
+  const changeBanner = (direction) => setBannerIndex((current) => (current + direction + banners.length) % banners.length);
 
   const visiblePosts = useMemo(() => {
     const keyword = query.trim().toLowerCase();
@@ -139,23 +172,15 @@ export function HomePage() {
     return Object.values(feed).flat().filter((post) => `${post.title}${post.body}${post.tags.join("")}`.toLowerCase().includes(keyword));
   }, [feed, feedTab, query]);
 
-  const updatePost = (id, key) => {
-    setFeed((current) => Object.fromEntries(Object.entries(current).map(([tab, list]) => [
-      tab,
-      list.map((post) => post.id === id ? { ...post, [key]: !post[key] } : post),
-    ])));
+  const updatePost = async (id, key) => {
+    if (!hasToken) { navigate("/login"); return; }
+    try {
+      const active = await api(`/forum/posts/${id}/${key === "liked" ? "like" : "collection"}`, { method: "POST" });
+      setFeed((current) => Object.fromEntries(Object.entries(current).map(([tab, list]) => [tab, list.map((post) => post.id === id ? { ...post, [key]: active, ...(key === "saved" ? { collected: active } : { likes: Math.max(0, post.likes + (active ? 1 : -1)) }) } : post)])));
+    } catch (err) { setHomeError(err.message); }
   };
 
-  const publish = () => {
-    if (!draft.trim()) return;
-    const newPost = {
-      id: Date.now(), author: "林同学", meta: "软件学院 · 刚刚", title: draft.trim(), body: "", tags: ["校园动态"], likes: 0, comments: 0, liked: false, saved: false,
-    };
-    setFeed((current) => ({ ...current, 推荐: [newPost, ...current.推荐] }));
-    setFeedTab("推荐");
-    setDraft("");
-    setShowComposer(false);
-  };
+  const publish = () => navigate(hasToken ? "/forum/new" : "/login");
 
   return (
     <div className="app-shell">
@@ -198,16 +223,42 @@ export function HomePage() {
           <div className="route-notice"><CheckCircle weight="fill" /> 已切换到「{activeNav}」模块，本原型重点展示首页体验。</div>
         )}
 
-        <section className="hero">
-          <img src="/assets/campus-friends-hero.png" alt="四位大学生坐在校园草坪上交流" />
+        <section className={`hero ${activeBanner ? "live-banner" : ""}`} aria-label="校园轮播图">
+          <img src={activeBanner?.imageUrl || "/assets/campus-friends-hero.png?v=2"} alt={activeBanner?.title || "四位大学生坐在校园草坪上交流"} onError={(event) => { event.currentTarget.src = "/assets/campus-friends-hero.png?v=2"; }} />
           <div className="hero-copy">
             <span className="eyebrow"><ShieldCheck weight="fill" /> 校园实名社区</span>
-            <h1>发现校园<br /><em>新鲜事</em></h1>
-            <p>分享日常，找到同频伙伴。<br />每一次连接，都从真实开始。</p>
-            <button onClick={() => setShowComposer(true)}><PencilSimpleLine /> 发布动态</button>
+            <h1>{activeBanner ? activeBanner.title : <>发现校园<br /><em>新鲜事</em></>}</h1>
+            <p>{activeBanner ? "校园焦点正在发生，点击了解更多。" : <>分享日常，找到同频伙伴。<br />每一次连接，都从真实开始。</>}</p>
+            <button onClick={() => activeBanner?.linkUrl ? window.location.assign(activeBanner.linkUrl) : publish()}>{activeBanner?.linkUrl ? <PaperPlaneTilt /> : <PencilSimpleLine />} {activeBanner?.linkUrl ? "查看详情" : "发布动态"}</button>
           </div>
           <div className="verified"><ShieldCheck weight="fill" /><div><strong>校内认证</strong><span>真实身份 · 安全友善</span></div></div>
+          {banners.length > 1 && <div className="carousel-controls">
+            <button onClick={() => changeBanner(-1)} aria-label="上一张轮播图"><CaretLeft /></button>
+            <div>{banners.map((banner, index) => <button key={banner.id} className={index === bannerIndex ? "active" : ""} onClick={() => setBannerIndex(index)} aria-label={`查看第 ${index + 1} 张轮播图`} />)}</div>
+            <button onClick={() => changeBanner(1)} aria-label="下一张轮播图"><CaretRight /></button>
+          </div>}
         </section>
+
+        {(newsItems.length > 0 || noticeItems.length > 0) && <section className="campus-briefing" aria-label="校园资讯与公告">
+          <div className="briefing-heading">
+            <span className="section-kicker">CAMPUS BRIEFING</span>
+            <h2>校园资讯</h2>
+            <button onClick={() => navigate("/news")}>查看全部 <CaretRight /></button>
+          </div>
+          <div className="briefing-news">
+            {newsItems.slice(0, 3).map((item, index) => <button key={item.id} className={index === 0 ? "featured-news" : ""} onClick={() => navigate(`/news/${item.id}`)}>
+              {index === 0 && item.coverUrl && <img src={item.coverUrl} alt="" />}
+              <span><Newspaper /> {item.source || "校园资讯"}</span>
+              <strong>{item.title}</strong>
+              {index === 0 && <small>{item.summary || "点击查看校园最新资讯"}</small>}
+            </button>)}
+          </div>
+          <div className="briefing-notices">
+            <div className="notice-title"><Megaphone /><strong>系统公告</strong></div>
+            {noticeItems.slice(0, 3).map((item) => <button key={item.id} onClick={() => navigate(`/notices/${item.id}`)}><span>{item.top ? "置顶" : "公告"}</span><strong>{item.title}</strong><time>{(item.publishedAt || "").slice(5, 10)}</time></button>)}
+            {!noticeItems.length && <p>暂无新公告</p>}
+          </div>
+        </section>}
 
         <div className="content-grid">
           <section className="feed-section">
@@ -216,7 +267,8 @@ export function HomePage() {
               {!query && <div className="feed-tabs">{["关注", "推荐", "最新"].map((tab) => <button key={tab} className={feedTab === tab ? "active" : ""} onClick={() => setFeedTab(tab)}>{tab}</button>)}</div>}
             </div>
             <div className="feed-list">
-              {visiblePosts.map((post) => <Post key={post.id} post={post} onUpdate={updatePost} />)}
+              {homeError && <div className="route-notice">{homeError}</div>}
+              {visiblePosts.map((post) => <Post key={post.id} post={post} onUpdate={updatePost} onOpen={(id) => navigate(`/forum/${id}`)} />)}
               {!visiblePosts.length && <div className="empty-state"><MagnifyingGlass /><strong>没有找到相关内容</strong><span>换一个关键词试试</span></div>}
             </div>
           </section>
@@ -225,19 +277,20 @@ export function HomePage() {
             <section className="side-section">
               <div className="side-heading"><h2>正在发生</h2><button onClick={() => navigate("/activities")}>查看全部</button></div>
               <div className="activity-list">
-                {activities.map((activity, index) => (
-                  <article className="activity clickable" key={activity.title} onClick={() => navigate(`/activities/${index + 1}`)}>
-                    <div className={`date-tile ${activity.color}`}><span>{activity.month}</span><strong>{activity.date}</strong></div>
-                    <div><h3>{activity.title}</h3><p><MapPin /> {activity.place}</p><span>{activity.people} 人感兴趣</span></div>
-                    <button className={joined.includes(index) ? "joined" : ""} onClick={(event) => { event.stopPropagation(); setJoined((current) => current.includes(index) ? current.filter((item) => item !== index) : [...current, index]); }}>{joined.includes(index) ? "已关注" : <Plus />}</button>
+                {homeActivities.map((activity, index) => {
+                  const start = new Date(activity.startAt); return (
+                  <article className="activity clickable" key={activity.id} onClick={() => navigate(`/activities/${activity.id}`)}>
+                    <div className={`date-tile ${["coral", "blue", "lime"][index % 3]}`}><span>{start.toLocaleString("en", { month: "short" }).toUpperCase()}</span><strong>{String(start.getDate()).padStart(2, "0")}</strong></div>
+                    <div><h3>{activity.title}</h3><p><MapPin /> {activity.location}</p><span>{activity.signedCount} 人已报名</span></div>
+                    <button aria-label={`查看${activity.title}详情`} onClick={(event) => { event.stopPropagation(); navigate(`/activities/${activity.id}`); }}><Plus /></button>
                   </article>
-                ))}
+                )})}
               </div>
             </section>
 
             <section className="side-section hot-section">
               <div className="side-heading"><h2>校园热榜</h2><Fire weight="fill" /></div>
-              <ol>{hotTopics.map(([title, count], index) => <li key={title}><button className="hot-link" onClick={() => navigate(`/forum/${index + 1}`)}><b>{index + 1}</b><span>{title}</span><small>{count}</small></button></li>)}</ol>
+              <ol>{homeTopics.map((topic, index) => <li key={topic.postId}><button className="hot-link" onClick={() => navigate(`/forum/${topic.postId}`)}><b>{index + 1}</b><span>{topic.title}</span><small>{topic.heat}</small></button></li>)}</ol>
               <button className="all-link" onClick={() => navigate("/forum")}>查看完整热榜 <PaperPlaneTilt /></button>
             </section>
 
@@ -246,17 +299,7 @@ export function HomePage() {
         </div>
       </main>
 
-      <button className="floating-publish" onClick={() => setShowComposer(true)}><PencilSimpleLine weight="bold" /><span>发布</span></button>
-
-      {showComposer && (
-        <div className="modal-backdrop" onMouseDown={() => setShowComposer(false)}>
-          <section className="composer" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="composer-head"><div><span>CREATE A POST</span><h2>分享此刻</h2></div><button onClick={() => setShowComposer(false)}><X /></button></div>
-            <textarea autoFocus value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="校园里发生了什么新鲜事？" />
-            <div className="composer-footer"><button className="add-image"><Image /> 添加图片</button><button className="submit" disabled={!draft.trim()} onClick={publish}>发布动态 <PaperPlaneTilt weight="fill" /></button></div>
-          </section>
-        </div>
-      )}
+      <button className="floating-publish" onClick={publish}><PencilSimpleLine weight="bold" /><span>发布</span></button>
     </div>
   );
 }

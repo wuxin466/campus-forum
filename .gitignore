@@ -7,8 +7,14 @@ dist/
 
 backend/target/
 *.log
+.minio-data/
+tools/minio/minio.exe
 
 .idea/
 .vscode/
 .DS_Store
 Thumbs.db
+.audit/
+.runlogs/
+backend/data/*
+!backend/data/.gitkeep

@@ -17,4 +17,7 @@ public interface ForumPostMapper extends BaseMapper<ForumPost> {
 
     @Update("UPDATE forum_post SET comment_count = comment_count + 1 WHERE id = #{id} AND deleted = 0")
     int incrementCommentCount(@Param("id") long id);
+
+    @Update("UPDATE forum_post SET comment_count = GREATEST(0, comment_count + #{delta}) WHERE id = #{id} AND deleted = 0")
+    int changeCommentCount(@Param("id") long id, @Param("delta") int delta);
 }
