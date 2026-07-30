@@ -1,13 +1,20 @@
 package com.campus.forum.controller;
 
 import com.campus.forum.common.ApiResponse;
+import com.campus.forum.common.PageResponse;
+import com.campus.forum.dto.confess.ConfessResponse;
+import com.campus.forum.dto.forum.PostResponse;
 import com.campus.forum.dto.user.FriendRequestResponse;
 import com.campus.forum.dto.user.PublicUserResponse;
 import com.campus.forum.dto.user.UpdateProfileRequest;
 import com.campus.forum.dto.user.UserProfileResponse;
 import com.campus.forum.service.FriendService;
+import com.campus.forum.service.ConfessService;
+import com.campus.forum.service.ForumService;
 import com.campus.forum.service.UserService;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -31,6 +38,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class UserController {
     private final UserService userService;
     private final FriendService friendService;
+    private final ForumService forumService;
+    private final ConfessService confessService;
 
     @GetMapping("/me")
     public ApiResponse<UserProfileResponse> me(@AuthenticationPrincipal Jwt jwt) {
@@ -46,6 +55,20 @@ public class UserController {
     @GetMapping("/{id}")
     public ApiResponse<PublicUserResponse> profile(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
         return ApiResponse.success(userService.profile(userId(jwt), id));
+    }
+
+    @GetMapping("/{id}/posts")
+    public ApiResponse<PageResponse<PostResponse>> posts(@AuthenticationPrincipal Jwt jwt, @PathVariable long id,
+            @RequestParam(defaultValue = "1") @Min(1) long page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) long size) {
+        return ApiResponse.success(forumService.publicPosts(id, page, size, userId(jwt)));
+    }
+
+    @GetMapping("/{id}/confesses")
+    public ApiResponse<PageResponse<ConfessResponse>> confesses(@AuthenticationPrincipal Jwt jwt, @PathVariable long id,
+            @RequestParam(defaultValue = "1") @Min(1) long page,
+            @RequestParam(defaultValue = "20") @Min(1) @Max(100) long size) {
+        return ApiResponse.success(confessService.publicConfesses(id, page, size, userId(jwt)));
     }
 
     @GetMapping("/search")

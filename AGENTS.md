@@ -12,5 +12,7 @@ When implementing from a selected generated mock, treat that image as the source
 - Elevate it with restrained cobalt accents, warmer neutral surfaces, sharper typography, consistent image ratios, more whitespace, and less poster-like decoration.
 - Keep the homepage focused on discovery, discussion, activities, and campus trust; avoid dashboard density and card stacks.
 - The user approved `public/assets/campus-friends-hero.png` as the homepage hero image.
+- Keep active campaign banners at the very top of the homepage and use the approved campus image as the empty-state fallback.
+- Present campus news and notices in a compact editorial briefing below the hero; avoid stacking large cards or making the homepage feel crowded.
 
 Build app UI in `src/`. Keep `.openai/hosting.json`, `worker/index.js`, `scripts/prepare-sites-build.mjs`, and `tests/sites-worker.test.mjs` intact so the same local prototype can be handed to Sites. Before a Sites handoff, run `npm run build` and `npm run test:sites`; the build must leave `dist/client/index.html`, `dist/server/index.js`, and `dist/.openai/hosting.json`.

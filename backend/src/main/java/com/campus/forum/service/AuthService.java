@@ -39,8 +39,12 @@ public class AuthService {
     public UserProfileResponse register(RegisterRequest request) {
         boolean exists = userMapper.exists(Wrappers.<User>lambdaQuery().eq(User::getUsername, request.username()));
         if (exists) throw BusinessException.badRequest("账号已存在");
+        if (userMapper.exists(Wrappers.<User>lambdaQuery().eq(User::getEmail, request.email().trim().toLowerCase()))) {
+            throw BusinessException.badRequest("邮箱已绑定其他账号");
+        }
         User user = new User();
         user.setUsername(request.username());
+        user.setEmail(request.email().trim().toLowerCase());
         user.setPasswordHash(passwordEncoder.encode(request.password()));
         user.setNickname(request.nickname());
         user.setCollege(request.college());

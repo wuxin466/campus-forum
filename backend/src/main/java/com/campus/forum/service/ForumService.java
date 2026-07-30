@@ -18,6 +18,7 @@ import com.campus.forum.entity.User;
 import com.campus.forum.entity.UserCollection;
 import com.campus.forum.exception.BusinessException;
 import com.campus.forum.mapper.ContentLikeMapper;
+import com.campus.forum.mapper.ConfessMapper;
 import com.campus.forum.mapper.ForumCategoryMapper;
 import com.campus.forum.mapper.ForumCommentMapper;
 import com.campus.forum.mapper.ForumPostMapper;
@@ -45,11 +46,13 @@ public class ForumService {
     private final ForumTagMapper tagMapper;
     private final ForumPostTagMapper postTagMapper;
     private final ForumCommentMapper commentMapper;
+    private final ConfessMapper confessMapper;
     private final ContentLikeMapper likeMapper;
     private final UserCollectionMapper collectionMapper;
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
+    private final CommunityCacheService cacheService;
 
     public List<ForumCategory> categories() {
         return categoryMapper.selectList(Wrappers.<ForumCategory>lambdaQuery()
@@ -109,6 +112,59 @@ public class ForumService {
         return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
+    public PageResponse<PostResponse> myPosts(long userId, long page, long size) {
+        IPage<ForumPost> result = postMapper.selectPage(Page.of(page, size),
+                Wrappers.<ForumPost>lambdaQuery().eq(ForumPost::getUserId, userId)
+                        .orderByDesc(ForumPost::getCreatedAt));
+        List<PostResponse> records = result.getRecords().stream()
+                .map(post -> toResponse(post, userId)).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    @Transactional
+    public void deletePost(long userId, long postId) {
+        ForumPost post = postMapper.selectById(postId);
+        if (post == null || post.getUserId() != userId) throw new BusinessException(404, "帖子不存在");
+        postMapper.deleteById(postId);
+    }
+
+    @Transactional
+    public void deleteComment(long userId, long commentId) {
+        ForumComment comment = commentMapper.selectById(commentId);
+        if (comment == null || comment.getUserId() != userId) throw new BusinessException(404, "评论不存在");
+        commentMapper.deleteById(commentId);
+        if (comment.getBizType() == POST) postMapper.changeCommentCount(comment.getBizId(), -1);
+        else if (comment.getBizType() == 2) confessMapper.changeCommentCount(comment.getBizId(), -1);
+    }
+
+    public PageResponse<PostResponse> publicPosts(long targetUserId, long page, long size, Long currentUserId) {
+        IPage<ForumPost> result = postMapper.selectPage(Page.of(page, size),
+                Wrappers.<ForumPost>lambdaQuery().eq(ForumPost::getUserId, targetUserId)
+                        .eq(ForumPost::getAuditStatus, 1).eq(ForumPost::getStatus, 1)
+                        .orderByDesc(ForumPost::getCreatedAt));
+        List<PostResponse> records = result.getRecords().stream()
+                .map(post -> toResponse(post, currentUserId)).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    public PageResponse<CommentResponse> myComments(long userId, long page, long size) {
+        IPage<ForumComment> result = commentMapper.selectPage(Page.of(page, size),
+                Wrappers.<ForumComment>lambdaQuery().eq(ForumComment::getUserId, userId)
+                        .eq(ForumComment::getAuditStatus, 1).orderByDesc(ForumComment::getCreatedAt));
+        List<CommentResponse> records = result.getRecords().stream().map(this::toCommentResponse).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    public PageResponse<PostResponse> myCollections(long userId, long page, long size) {
+        IPage<UserCollection> result = collectionMapper.selectPage(Page.of(page, size),
+                Wrappers.<UserCollection>lambdaQuery().eq(UserCollection::getUserId, userId)
+                        .eq(UserCollection::getBizType, POST).orderByDesc(UserCollection::getCreatedAt));
+        List<PostResponse> records = result.getRecords().stream().map(UserCollection::getBizId)
+                .map(postMapper::selectById).filter(post -> post != null && post.getDeleted() == 0)
+                .map(post -> toResponse(post, userId)).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
     @Transactional
     public CommentResponse comment(long userId, long postId, CreateCommentRequest request) {
         ForumPost targetPost = requireVisiblePost(postId);
@@ -142,6 +198,8 @@ public class ForumService {
         if (existing != null) {
             likeMapper.deleteById(existing.getId());
             postMapper.changeLikeCount(postId, -1);
+            cacheService.recordLike("post", postId, Math.max(0, targetPost.getLikeCount() - 1));
+            cacheService.evict("campus:home:public");
             return false;
         }
         ContentLike like = new ContentLike();
@@ -152,6 +210,8 @@ public class ForumService {
             return true;
         }
         postMapper.changeLikeCount(postId, 1);
+        cacheService.recordLike("post", postId, targetPost.getLikeCount() + 1);
+        cacheService.evict("campus:home:public");
         notificationService.create(targetPost.getUserId(), userId, 1, "帖子获得新点赞",
                 null, POST, postId);
         return true;
@@ -217,12 +277,13 @@ public class ForumService {
         return new PostResponse(post.getId(), post.getUserId(), user.getNickname(), user.getAvatarUrl(), user.getCollege(),
                 post.getCategoryId(), category.getName(), post.getTitle(), post.getContent(), readImages(post.getImageUrls()), tags,
                 post.getViewCount(), post.getLikeCount(), post.getCommentCount(), post.getCollectCount(), post.getIsTop() == 1,
-                post.getIsFeatured() == 1, liked, collected, post.getCreatedAt());
+                post.getIsFeatured() == 1, liked, collected, post.getAuditStatus(), post.getAuditReason(),
+                post.getStatus(), post.getCreatedAt());
     }
 
     private CommentResponse toCommentResponse(ForumComment comment) {
         User user = userMapper.selectById(comment.getUserId());
-        return new CommentResponse(comment.getId(), comment.getParentId(), comment.getRootId(), comment.getUserId(),
+        return new CommentResponse(comment.getId(), comment.getBizType(), comment.getBizId(), comment.getParentId(), comment.getRootId(), comment.getUserId(),
                 user.getNickname(), user.getAvatarUrl(), comment.getReplyUserId(), comment.getContent(),
                 comment.getLikeCount(), comment.getCreatedAt());
     }

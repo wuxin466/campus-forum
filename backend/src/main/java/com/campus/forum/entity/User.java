@@ -14,6 +14,7 @@ public class User extends BaseEntity {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String username;
+    private String email;
     private String passwordHash;
     private String nickname;
     private String avatarUrl;

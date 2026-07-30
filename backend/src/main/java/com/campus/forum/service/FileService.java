@@ -12,6 +12,9 @@ import io.minio.PutObjectArgs;
 import io.minio.RemoveObjectArgs;
 import io.minio.http.Method;
 import java.io.InputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -20,13 +23,17 @@ import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.FileSystemResource;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class FileService {
     private static final Set<String> ALLOWED_TYPES = Set.of(
             "image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf");
@@ -38,27 +45,49 @@ public class FileService {
     private String bucket;
     @Value("${campus.minio.max-file-size}")
     private long maxFileSize;
+    @Value("${campus.storage.mode:minio}")
+    private String storageMode;
+    @Value("${campus.storage.local-path:./data/uploads}")
+    private String localPath;
 
     @Transactional
     public FileResponse upload(long userId, MultipartFile file, int accessType) {
         validate(file, accessType);
-        String objectKey = LocalDate.now() + "/" + UUID.randomUUID() + extension(file.getOriginalFilename());
+        String objectName = UUID.randomUUID() + extension(file.getOriginalFilename());
+        String objectKey = isLocalStorage() ? objectName : LocalDate.now() + "/" + objectName;
         String sha256;
         try {
-            ensureBucket();
             sha256 = sha256(file);
-            try (InputStream stream = file.getInputStream()) {
-                minioClient.putObject(PutObjectArgs.builder().bucket(bucket).object(objectKey)
-                        .contentType(file.getContentType()).stream(stream, file.getSize(), -1).build());
+            if (isLocalStorage()) {
+                Path target = localFile(objectKey);
+                Files.createDirectories(target.getParent());
+                try (InputStream stream = file.getInputStream()) {
+                    Files.copy(stream, target, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } else {
+                ensureBucket();
+                try (InputStream stream = file.getInputStream()) {
+                    minioClient.putObject(PutObjectArgs.builder().bucket(bucket).object(objectKey)
+                            .contentType(file.getContentType()).stream(stream, file.getSize(), -1).build());
+                }
             }
         } catch (Exception exception) {
+            log.error("File upload failed, storageMode={}, localPath={}, objectKey={}",
+                    storageMode, localPath, objectKey, exception);
             throw new BusinessException(503, "文件存储服务暂不可用");
         }
         FileObject object = new FileObject();
-        object.setUploaderId(userId); object.setBucketName(bucket); object.setObjectKey(objectKey);
-        object.setOriginalName(file.getOriginalFilename()); object.setContentType(file.getContentType());
-        object.setFileSize(file.getSize()); object.setSha256(sha256); object.setAccessType(accessType);
-        object.setStatus(1); object.setCreatedAt(LocalDateTime.now()); object.setDeleted(0);
+        object.setUploaderId(userId);
+        object.setBucketName(isLocalStorage() ? "local" : bucket);
+        object.setObjectKey(objectKey);
+        object.setOriginalName(file.getOriginalFilename());
+        object.setContentType(file.getContentType());
+        object.setFileSize(file.getSize());
+        object.setSha256(sha256);
+        object.setAccessType(accessType);
+        object.setStatus(1);
+        object.setCreatedAt(LocalDateTime.now());
+        object.setDeleted(0);
         try {
             fileMapper.insert(object);
         } catch (RuntimeException exception) {
@@ -70,19 +99,36 @@ public class FileService {
 
     public FileResponse get(long requesterId, boolean admin, long fileId) {
         FileObject object = requireFile(fileId);
-        if (object.getAccessType() == 0 && object.getUploaderId() != requesterId && !admin) {
+        if (object.getAccessType() == 0 && !object.getUploaderId().equals(requesterId) && !admin) {
             throw new BusinessException(403, "没有文件访问权限");
         }
         return response(object);
     }
 
+    public Download download(long fileId) {
+        FileObject object = requireFile(fileId);
+        if (object.getAccessType() != 1) throw new BusinessException(403, "该文件不是公开文件");
+        if ("local".equals(object.getBucketName())) {
+            Path path = localFile(object.getObjectKey());
+            if (!Files.isRegularFile(path)) throw new BusinessException(404, "文件不存在");
+            return new Download(new FileSystemResource(path), object.getContentType(), object.getFileSize(), null);
+        }
+        return new Download(null, object.getContentType(), object.getFileSize(), response(object).url());
+    }
+
     @Transactional
     public void delete(long requesterId, boolean admin, long fileId) {
         FileObject object = requireFile(fileId);
-        if (object.getUploaderId() != requesterId && !admin) throw new BusinessException(403, "没有文件删除权限");
+        if (!object.getUploaderId().equals(requesterId) && !admin) {
+            throw new BusinessException(403, "没有文件删除权限");
+        }
         try {
-            minioClient.removeObject(RemoveObjectArgs.builder().bucket(object.getBucketName())
-                    .object(object.getObjectKey()).build());
+            if ("local".equals(object.getBucketName())) {
+                Files.deleteIfExists(localFile(object.getObjectKey()));
+            } else {
+                minioClient.removeObject(RemoveObjectArgs.builder().bucket(object.getBucketName())
+                        .object(object.getObjectKey()).build());
+            }
         } catch (Exception exception) {
             throw new BusinessException(503, "文件存储服务暂不可用");
         }
@@ -96,6 +142,11 @@ public class FileService {
     }
 
     private FileResponse response(FileObject object) {
+        if ("local".equals(object.getBucketName())) {
+            return new FileResponse(object.getId(), object.getOriginalName(), object.getContentType(),
+                    object.getFileSize(), object.getSha256(), object.getAccessType(),
+                    "/api/public/files/" + object.getId(), 0, object.getCreatedAt());
+        }
         try {
             String url = minioClient.getPresignedObjectUrl(GetPresignedObjectUrlArgs.builder()
                     .method(Method.GET).bucket(object.getBucketName()).object(object.getObjectKey())
@@ -139,7 +190,20 @@ public class FileService {
     }
 
     private void removeQuietly(String objectKey) {
-        try { minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(objectKey).build()); }
-        catch (Exception ignored) { }
+        try {
+            if (isLocalStorage()) Files.deleteIfExists(localFile(objectKey));
+            else minioClient.removeObject(RemoveObjectArgs.builder().bucket(bucket).object(objectKey).build());
+        } catch (Exception ignored) { }
     }
+
+    private boolean isLocalStorage() { return "local".equalsIgnoreCase(storageMode); }
+
+    private Path localFile(String objectKey) {
+        Path root = Path.of(localPath).toAbsolutePath().normalize();
+        Path target = root.resolve(objectKey).normalize();
+        if (!target.startsWith(root)) throw BusinessException.badRequest("非法文件路径");
+        return target;
+    }
+
+    public record Download(Resource resource, String contentType, long size, String redirectUrl) { }
 }

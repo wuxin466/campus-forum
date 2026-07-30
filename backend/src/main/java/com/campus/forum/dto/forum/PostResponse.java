@@ -8,4 +8,5 @@ public record PostResponse(
         Long categoryId, String categoryName, String title, String content,
         List<String> imageUrls, List<String> tags, int views, int likes,
         int comments, int collections, boolean top, boolean featured,
-        boolean liked, boolean collected, LocalDateTime createdAt) {}
+        boolean liked, boolean collected, int auditStatus, String auditReason,
+        int status, LocalDateTime createdAt) {}

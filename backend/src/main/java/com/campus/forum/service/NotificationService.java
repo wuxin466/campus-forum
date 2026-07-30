@@ -15,20 +15,37 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.amqp.rabbit.annotation.RabbitListener;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
+import org.springframework.beans.factory.annotation.Value;
+import com.campus.forum.config.InfrastructureConfig;
+import com.campus.forum.dto.notification.NotificationEvent;
 
 @Service
 @RequiredArgsConstructor
 public class NotificationService {
     private final NotificationMapper notificationMapper;
     private final UserMapper userMapper;
+    private final RabbitTemplate rabbitTemplate;
+    @Value("${campus.infrastructure.rabbit-enabled:true}") private boolean rabbitEnabled;
 
     public void create(long receiverId, Long actorId, int type, String title, String content,
                        Integer bizType, Long bizId) {
         if (actorId != null && receiverId == actorId) return;
+        NotificationEvent event = new NotificationEvent(receiverId, actorId, type, title, content, bizType, bizId);
+        if (rabbitEnabled) rabbitTemplate.convertAndSend(InfrastructureConfig.NOTIFICATION_QUEUE, event);
+        else persist(event);
+    }
+
+    @RabbitListener(queues = InfrastructureConfig.NOTIFICATION_QUEUE,
+            autoStartup = "${campus.infrastructure.rabbit-enabled:true}")
+    public void consume(NotificationEvent event) { persist(event); }
+
+    private void persist(NotificationEvent event) {
         Notification notification = new Notification();
-        notification.setUserId(receiverId); notification.setActorId(actorId); notification.setType(type);
-        notification.setTitle(title); notification.setContent(content); notification.setBizType(bizType);
-        notification.setBizId(bizId); notification.setIsRead(0); notification.setCreatedAt(LocalDateTime.now());
+        notification.setUserId(event.receiverId()); notification.setActorId(event.actorId()); notification.setType(event.type());
+        notification.setTitle(event.title()); notification.setContent(event.content()); notification.setBizType(event.bizType());
+        notification.setBizId(event.bizId()); notification.setIsRead(0); notification.setCreatedAt(LocalDateTime.now());
         notificationMapper.insert(notification);
     }
 

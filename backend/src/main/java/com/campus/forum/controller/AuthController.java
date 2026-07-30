@@ -6,8 +6,12 @@ import com.campus.forum.dto.auth.RegisterRequest;
 import com.campus.forum.dto.auth.TokenResponse;
 import com.campus.forum.dto.auth.RefreshTokenRequest;
 import com.campus.forum.dto.auth.ChangePasswordRequest;
+import com.campus.forum.dto.auth.ForgotPasswordRequest;
+import com.campus.forum.dto.auth.ForgotPasswordResponse;
+import com.campus.forum.dto.auth.ResetPasswordRequest;
 import com.campus.forum.dto.user.UserProfileResponse;
 import com.campus.forum.service.AuthService;
+import com.campus.forum.service.PasswordRecoveryService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -24,6 +28,18 @@ import jakarta.servlet.http.HttpServletRequest;
 @RequiredArgsConstructor
 public class AuthController {
     private final AuthService authService;
+    private final PasswordRecoveryService passwordRecoveryService;
+
+    @PostMapping("/forgot-password")
+    public ApiResponse<ForgotPasswordResponse> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        return ApiResponse.success(passwordRecoveryService.request(request.email()));
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        passwordRecoveryService.reset(request.email(), request.code(), request.newPassword());
+        return ApiResponse.success();
+    }
 
     @PostMapping("/register")
     public ApiResponse<UserProfileResponse> register(@Valid @RequestBody RegisterRequest request) {

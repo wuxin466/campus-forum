@@ -38,7 +38,8 @@ public class SecurityConfig {
             .cors(Customizer.withDefaults())
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/auth/login", "/auth/register", "/auth/refresh", "/auth/logout", "/public/**").permitAll()
+                .requestMatchers("/auth/login", "/auth/register", "/auth/refresh", "/auth/logout",
+                        "/auth/forgot-password", "/auth/reset-password", "/public/**").permitAll()
                 .requestMatchers("/admin/**").hasAnyRole("ADMIN", "SUPER_ADMIN")
                 .anyRequest().authenticated())
             .oauth2ResourceServer(oauth -> oauth

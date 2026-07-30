@@ -38,11 +38,24 @@ public class ConfessService {
     private final UserMapper userMapper;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
+    private final CommunityCacheService cacheService;
 
     public PageResponse<ConfessResponse> list(long page, long size, Long currentUserId) {
         IPage<Confess> result = confessMapper.selectPage(Page.of(page, size),
                 Wrappers.<Confess>lambdaQuery().eq(Confess::getAuditStatus, 1)
                         .eq(Confess::getStatus, 1).orderByDesc(Confess::getCreatedAt));
+        List<ConfessResponse> records = result.getRecords().stream()
+                .map(item -> toResponse(item, currentUserId, false)).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    public PageResponse<ConfessResponse> search(long page, long size, String keyword, Long currentUserId) {
+        if (!StringUtils.hasText(keyword)) return new PageResponse<>(List.of(), 0, page, size, 0);
+        String value = keyword.trim();
+        IPage<Confess> result = confessMapper.selectPage(Page.of(page, size),
+                Wrappers.<Confess>lambdaQuery().eq(Confess::getAuditStatus, 1)
+                        .eq(Confess::getStatus, 1).like(Confess::getContent, value)
+                        .orderByDesc(Confess::getCreatedAt));
         List<ConfessResponse> records = result.getRecords().stream()
                 .map(item -> toResponse(item, currentUserId, false)).toList();
         return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
@@ -70,6 +83,16 @@ public class ConfessService {
                         .orderByDesc(Confess::getCreatedAt));
         List<ConfessResponse> records = result.getRecords().stream()
                 .map(item -> toResponse(item, userId, true)).toList();
+        return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
+    }
+
+    public PageResponse<ConfessResponse> publicConfesses(long targetUserId, long page, long size, Long currentUserId) {
+        IPage<Confess> result = confessMapper.selectPage(Page.of(page, size),
+                Wrappers.<Confess>lambdaQuery().eq(Confess::getUserId, targetUserId)
+                        .eq(Confess::getIsAnonymous, 0).eq(Confess::getAuditStatus, 1)
+                        .eq(Confess::getStatus, 1).orderByDesc(Confess::getCreatedAt));
+        List<ConfessResponse> records = result.getRecords().stream()
+                .map(item -> toResponse(item, currentUserId, false)).toList();
         return new PageResponse<>(records, result.getTotal(), result.getCurrent(), result.getSize(), result.getPages());
     }
 
@@ -124,6 +147,7 @@ public class ConfessService {
         if (existing != null) {
             likeMapper.deleteById(existing.getId());
             confessMapper.changeLikeCount(confessId, -1);
+            cacheService.recordLike("confess", confessId, Math.max(0, targetConfess.getLikeCount() - 1));
             return false;
         }
         ContentLike like = new ContentLike();
@@ -135,6 +159,7 @@ public class ConfessService {
             return true;
         }
         confessMapper.changeLikeCount(confessId, 1);
+        cacheService.recordLike("confess", confessId, targetConfess.getLikeCount() + 1);
         notificationService.create(targetConfess.getUserId(), userId, 1, "表白获得新点赞",
                 null, CONFESS, confessId);
         return true;
@@ -163,7 +188,7 @@ public class ConfessService {
 
     private CommentResponse toComment(ForumComment comment) {
         User user = userMapper.selectById(comment.getUserId());
-        return new CommentResponse(comment.getId(), comment.getParentId(), comment.getRootId(), comment.getUserId(),
+        return new CommentResponse(comment.getId(), comment.getBizType(), comment.getBizId(), comment.getParentId(), comment.getRootId(), comment.getUserId(),
                 user.getNickname(), user.getAvatarUrl(), comment.getReplyUserId(), comment.getContent(),
                 comment.getLikeCount(), comment.getCreatedAt());
     }

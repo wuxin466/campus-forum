@@ -8,3 +8,14 @@ spring:
 logging:
   level:
     com.campus.forum.mapper: debug
+
+campus:
+  password-reset:
+    expose-code: true
+    mail-enabled: false
+  infrastructure:
+    redis-enabled: false
+    rabbit-enabled: false
+  storage:
+    mode: local
+    local-path: ./data/uploads

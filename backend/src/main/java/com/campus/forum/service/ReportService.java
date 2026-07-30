@@ -8,6 +8,10 @@ import com.campus.forum.dto.report.CreateReportRequest;
 import com.campus.forum.dto.report.HandleReportRequest;
 import com.campus.forum.dto.report.ReportResponse;
 import com.campus.forum.entity.AdminAuditLog;
+import com.campus.forum.entity.Activity;
+import com.campus.forum.entity.Confess;
+import com.campus.forum.entity.ForumComment;
+import com.campus.forum.entity.ForumPost;
 import com.campus.forum.entity.Message;
 import com.campus.forum.entity.Report;
 import com.campus.forum.entity.User;
@@ -85,6 +89,13 @@ public class ReportService {
         report.setHandleResult(request.result().trim()); report.setHandledAt(LocalDateTime.now());
         report.setUpdatedAt(LocalDateTime.now());
         reportMapper.updateById(report);
+        if (request.status() == 2) {
+            Long ownerId = applyTargetAction(report, request.result().trim());
+            if (ownerId != null) {
+                notificationService.create(ownerId, null, 5, "违规内容处理通知",
+                        request.result().trim(), report.getBizType(), report.getBizId());
+            }
+        }
         notificationService.create(report.getReporterId(), null, 5, "举报处理完成",
                 request.result().trim(), 6, reportId);
         AdminAuditLog log = new AdminAuditLog();
@@ -92,6 +103,42 @@ public class ReportService {
         log.setBizType("REPORT"); log.setBizId(reportId); log.setResult(1);
         log.setDetail(writeDetail(request.result())); log.setIpAddress(ip); log.setCreatedAt(LocalDateTime.now());
         auditLogMapper.insert(log);
+    }
+
+    private Long applyTargetAction(Report report, String reason) {
+        return switch (report.getBizType()) {
+            case 1 -> {
+                User user = userMapper.selectById(report.getBizId());
+                if (user != null) { user.setStatus(2); userMapper.updateById(user); }
+                yield user == null ? null : user.getId();
+            }
+            case 2 -> {
+                ForumPost post = postMapper.selectById(report.getBizId());
+                if (post != null) { post.setAuditStatus(2); post.setAuditReason(reason); post.setStatus(0); postMapper.updateById(post); }
+                yield post == null ? null : post.getUserId();
+            }
+            case 3 -> {
+                Confess confess = confessMapper.selectById(report.getBizId());
+                if (confess != null) { confess.setAuditStatus(2); confess.setAuditReason(reason); confess.setStatus(0); confessMapper.updateById(confess); }
+                yield confess == null ? null : confess.getUserId();
+            }
+            case 4 -> {
+                ForumComment comment = commentMapper.selectById(report.getBizId());
+                if (comment != null) { comment.setAuditStatus(2); comment.setDeleted(1); commentMapper.updateById(comment); }
+                yield comment == null ? null : comment.getUserId();
+            }
+            case 5 -> {
+                Activity activity = activityMapper.selectById(report.getBizId());
+                if (activity != null) { activity.setAuditStatus(2); activity.setAuditReason(reason); activity.setStatus(0); activityMapper.updateById(activity); }
+                yield activity == null ? null : activity.getCreatorId();
+            }
+            case 6 -> {
+                Message message = messageMapper.selectById(report.getBizId());
+                if (message != null) { message.setDeletedBySender(1); message.setDeletedByReceiver(1); messageMapper.updateById(message); }
+                yield message == null ? null : message.getSenderId();
+            }
+            default -> null;
+        };
     }
 
     private void validateTarget(long reporterId, int type, long id) {

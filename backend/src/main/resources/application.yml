@@ -23,6 +23,14 @@ spring:
     port: ${RABBITMQ_PORT:5672}
     username: ${RABBITMQ_USERNAME:guest}
     password: ${RABBITMQ_PASSWORD:guest}
+  mail:
+    host: ${MAIL_HOST:localhost}
+    port: ${MAIL_PORT:25}
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
+    properties:
+      mail.smtp.auth: ${MAIL_SMTP_AUTH:false}
+      mail.smtp.starttls.enable: ${MAIL_STARTTLS:false}
   flyway:
     enabled: ${FLYWAY_ENABLED:true}
     locations: ${FLYWAY_LOCATIONS:filesystem:database}
@@ -47,6 +55,16 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 campus:
+  password-reset:
+    expose-code: ${PASSWORD_RESET_EXPOSE_CODE:false}
+    mail-enabled: ${PASSWORD_RESET_MAIL_ENABLED:true}
+    from: ${MAIL_FROM:noreply@campus.local}
+  infrastructure:
+    redis-enabled: ${REDIS_ENABLED:true}
+    rabbit-enabled: ${RABBITMQ_ENABLED:true}
+  storage:
+    mode: ${FILE_STORAGE_MODE:minio}
+    local-path: ${FILE_LOCAL_PATH:./data/uploads}
   jwt:
     issuer: ${JWT_ISSUER:campus-forum}
     secret: ${JWT_SECRET:replace-this-development-secret-with-at-least-32-bytes}

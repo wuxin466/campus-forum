@@ -17,6 +17,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -78,6 +79,39 @@ public class ForumController {
     @PostMapping("/forum/posts/{id}/collection")
     public ApiResponse<Boolean> collection(@PathVariable long id, @AuthenticationPrincipal Jwt jwt) {
         return ApiResponse.success(forumService.toggleCollection(requiredUserId(jwt), id));
+    }
+
+    @GetMapping("/forum/posts/mine")
+    public ApiResponse<PageResponse<PostResponse>> myPosts(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "1") @Min(1) long page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) long size) {
+        return ApiResponse.success(forumService.myPosts(requiredUserId(jwt), page, size));
+    }
+
+    @DeleteMapping("/forum/posts/{id}")
+    public ApiResponse<Void> deletePost(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        forumService.deletePost(requiredUserId(jwt), id);
+        return ApiResponse.success();
+    }
+
+    @DeleteMapping("/forum/comments/{id}")
+    public ApiResponse<Void> deleteComment(@AuthenticationPrincipal Jwt jwt, @PathVariable long id) {
+        forumService.deleteComment(requiredUserId(jwt), id);
+        return ApiResponse.success();
+    }
+
+    @GetMapping("/forum/comments/mine")
+    public ApiResponse<PageResponse<CommentResponse>> myComments(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "1") @Min(1) long page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) long size) {
+        return ApiResponse.success(forumService.myComments(requiredUserId(jwt), page, size));
+    }
+
+    @GetMapping("/forum/collections/mine")
+    public ApiResponse<PageResponse<PostResponse>> myCollections(@AuthenticationPrincipal Jwt jwt,
+            @RequestParam(defaultValue = "1") @Min(1) long page,
+            @RequestParam(defaultValue = "10") @Min(1) @Max(100) long size) {
+        return ApiResponse.success(forumService.myCollections(requiredUserId(jwt), page, size));
     }
 
     private Long userId(Jwt jwt) {

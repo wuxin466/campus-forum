@@ -1,5 +1,6 @@
 import { HashRouter, Navigate, Route, Routes } from "react-router-dom";
 import { HomePage } from "./HomePage.jsx";
+import { authStore } from "./api.js";
 import {
   ActivityDetailPage,
   ActivityPage,
@@ -19,6 +20,7 @@ import {
   PersonalCenterPage,
   SearchPage,
   UserSpacePage,
+  VerificationPage,
 } from "./Portal.jsx";
 
 function Guard({ children }) {
@@ -27,8 +29,7 @@ function Guard({ children }) {
 }
 
 function AdminGuard({ children }) {
-  const token = localStorage.getItem("campus-access-token");
-  return token ? children : <Navigate to="/admin/login" replace />;
+  return authStore.access() && authStore.isAdmin() ? children : <Navigate to="/admin/login" replace />;
 }
 
 export function App() {
@@ -59,6 +60,7 @@ export function App() {
         <Route path="/messages" element={<Guard><MessagePage /></Guard>} />
         <Route path="/messages/:id" element={<Guard><MessagePage conversation /></Guard>} />
         <Route path="/me" element={<Guard><PersonalCenterPage /></Guard>} />
+        <Route path="/verification" element={<Guard><VerificationPage /></Guard>} />
         <Route path="/admin/login" element={<AdminLoginPage />} />
         <Route path="/admin" element={<AdminGuard><AdminPage /></AdminGuard>} />
         <Route path="/admin/:section" element={<AdminGuard><AdminPage /></AdminGuard>} />
